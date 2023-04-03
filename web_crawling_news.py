@@ -4,9 +4,14 @@ from bs4 import BeautifulSoup
 from xlwt import *
 import os
 import sys
+import openai
+
 
 sys.stdout.reconfigure(encoding='utf-8')
 os.environ['PYTHONIOENCODING'] = 'UTF-8'
+
+# Inserir chave API do OpenAI
+openai.api_key = "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"
 
 
 # Site que queremos realizar o Web Crawling
@@ -40,67 +45,9 @@ news = soup.find_all('div', {'class': 'row my-4 d-flex'})
 # Iniciando o número como indexador/ranking da lista
 num = 0
 
-for new in news:
 
-    # Verificando se a tag 'h4' existe
-    if new.find('h4', {'class': 'alt-font font-weight-bold my-2'}) is not None:
-        # Adiciona o título dentro da classe externa da lista "news"
-        title = new.find('h4', {'class': 'alt-font font-weight-bold my-2'}).get_text().strip()
-    else:
-        title = ''
-
-    # Verificando se a tag 'em' existe
-    if new.find('em', {'class': 'placeholder'}) is not None:
-        # Adiciona a data dentro da classe externa da lista "news"
-        news_date = new.find('em', {'class': 'placeholder'}).text.strip()
-    else:
-        news_date = ''
-
-    # Verificando se a tag 'a' e o atributo 'href' existem
-    if new.find('a') is not None and 'href' in new.find('a').attrs:
-        # Adiciona a URL da notícia dentro da classe externa da lista "news"
-        urls = 'https://agenciabrasil.ebc.com.br' + new.find('a')['href']
-    else:
-        urls = ''
-
-    # Para cada loop completo adiciona mais um número no indexador/ranking
-    num += 1
-
-    # Aloca em variável a resposta do link de cada notícia com uso do 'requests'
-    new_f = requests.get(urls, headers=headers)
-
-    # Transforma em objeto BeautifulSoup
-    new_soup = BeautifulSoup(new_f.content, 'lxml')
-
-    # Verificando se a tag 'div' e o atributo 'class' existem
-    if new_soup.find('div', {'class': 'post-item-wrap'}) is not None:
-        # Busca o conteúdo da notícia pelo trecho do HTML devido
-        new_content = new_soup.find('div', {'class': 'post-item-wrap'}).get_text().strip()
-    else:
-        new_content = ''
-
-    print(num, urls, news_date, '\n', 'Título da notícia:', title)
-    print('Notícia completa:', new_content.encode('utf-8', 'ignore').decode('utf-8'))
-
-
-
-# Adicionando linhas de código no loop para o resultado final ser salvo em um tabela Excel
-
-workbook = Workbook(encoding = 'utf-8')
-
-table = workbook.add_sheet('data')
-
-# Cria o cabeçalho de cada coluna na primeira linha da tabela
-table.write(0, 0, 'number')
-table.write(0, 1, 'url')
-table.write(0, 2, 'title')
-table.write(0, 3, 'date')
-table.write(0, 4, 'article')
-
-# Iniciando o loop final
-
-num = 0
-line = 1
+# Inicializa a variável para armazenar todas as notícias em um texto único
+all_news = ""
 
 for new in news:
 
@@ -140,15 +87,28 @@ for new in news:
         new_content = new_soup.find('div', {'class': 'post-item-wrap'}).get_text().strip()
     else:
         new_content = ''
-    
-    # Salva o dado extraído no Excel a partir da segunda linha
-    table.write(line, 0, num)
-    table.write(line, 1, urls)
-    table.write(line, 2, title)
-    table.write(line, 3, news_date)
-    table.write(line, 4, new_content)
-    line += 1
+
+    # Adiciona o título e o conteúdo da notícia ao texto único
+    all_news += f"{title}: {new_content}\n\n"
 
 
-# Salva o arquivo Excel no computador
-workbook.save('agencia_brasil_news.xls')
+# Solicita o resumo das notícias usando a API do OpenAI
+def generate_summary(prompt):
+    response = openai.Completion.create(
+        engine="text-davinci-002",
+        prompt=prompt,
+        max_tokens=150,
+        n=1,
+        stop=None,
+        temperature=0.5,
+    )
+    return response.choices[0].text.strip()
+
+# Prepara o prompt com todas as notícias
+prompt = f"Estas são as notícias do dia. Resuma os acontecimentos mais relevantes em poucos bullet points: {all_news}"
+
+# Gera o resumo
+summary = generate_summary(prompt)
+
+print("\nResumo dos acontecimentos mais relevantes:")
+print(summary)
